@@ -1,5 +1,5 @@
 all:
-	gcc hw1.c -o hw1
-
+	gcc server.c -lpthread -o server
+	gcc client.c -lpthread -o client
 clean:
-	rm hw1
+	rm -rf client server
