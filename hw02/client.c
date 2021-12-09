@@ -342,7 +342,7 @@ void *sendsock(void *arg){
 					map();
 					if(iswin(le1))
 					{
-						printf("[INFO]You win!\n\n");
+						printf("[INFO]You win!!\n\n");
 						G=0;
 						send(sockfd,"Gammingend",strlen("Gammingend"),0);
 					}
@@ -417,10 +417,14 @@ void *sendsock(void *arg){
 		{
 			printmenu();
 		}
+		else if(strcmp(sendbuf,"print")==0)
+		{
+			map();
+		}
 		else if(sendbuf[0]!='\0'){
 			if(yes_no == 1){
 				printf("Please enter yes/no !!\n");
-				pthread_mutex_unlock(&data_mutex);
+				//pthread_mutex_unlock(&data_mutex);
 				continue;
 			}
 			sprintf(msg,"[%s] : %s",name,sendbuf);
