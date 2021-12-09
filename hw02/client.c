@@ -12,6 +12,11 @@
 
 
 int sockfd;
+int myfd;
+int yes_no = 0;
+char sendbuf[128];
+char recvbuf[128];
+// int f = 1;
 char name[30];
 char passwd[30];
 int oppofd, G=0, IsMe=0;
@@ -30,9 +35,13 @@ static void sig_handler(int sig)
 	char command[128];
 	memset(command, 0, sizeof(command));
 	if(sig==SIGINT){
+		char tmp[128];
+		sprintf(tmp,"Leave %d",oppofd);
+		send(sockfd,tmp,strlen(tmp),0);
+		memset(tmp,0,sizeof(tmp));
+		sprintf(tmp,"[INFO] %s 退出了聊天室",name);
+		send(sockfd,tmp,strlen(tmp),0);
 		printf("\n\t<<<Close the program>>>\n\n");
-		//strcpy(command, "quit");
-        //send(sockfd,command,strlen(command),0);
 		close(sockfd);
 		exit(0);
 	}
@@ -75,8 +84,13 @@ int start(){
 		if (strncmp(buffer,"authenticate",12) == 0){
 			send(sockfd,name,strlen(name),0);
 		}
-        else if (strcmp(buffer,"Successfully") == 0){
+        else if (strncmp(buffer,"Successfully",12) == 0){
             printf("[INFO] Client start Successfully! \n<<< Welcome!! >>>\n");
+			char *ptr;
+			ptr=strstr(buffer," ");
+			ptr++;
+			myfd = atoi(ptr);
+			// printf("MYFD is: %d\n",myfd);
             printmenu();
             break;
         }
@@ -111,26 +125,77 @@ int start(){
 void *recvsock(void *arg){
     char *ptr,*qtr;
 	while(1){
-        pthread_mutex_lock(&data_mutex);
-		char buf[128];
-        memset(buf, 0, sizeof(buf));
-		if (recv(sockfd,buf,sizeof(buf),0) <= 0){
+        
+        memset(recvbuf, 0, sizeof(recvbuf));
+		if (recv(sockfd,recvbuf,sizeof(recvbuf),0) <= 0){
 			return;
 		}
-		else if(strncmp(buf,"CONNECT ",8)==0)
+		pthread_mutex_lock(&data_mutex);
+		if(strncmp(recvbuf,"CONNECT ",8)==0)
 		{
-			ptr=strstr(buf," ");
+			ptr=strstr(recvbuf," ");
 			ptr++;
 			qtr=strstr(ptr," ");
 			*qtr='\0';
 			strcpy(opponame,ptr);
 			qtr++;
-			oppofd=atoi(qtr);
-			printf("[INFO]Do you agree to start a new game with [%s] (yes/no)?\n  ",opponame);
+			if(G == 1){
+				// int fd=atoi(qtr);
+				// char tmp[256];
+				// sprintf(tmp,"Gamming %d",atoi(qtr));
+				// send(fd,"遊戲中...無法接受邀請!!\n\0",strlen("遊戲中...無法接受邀請!!\n\0"),0);//tmp,strlen(tmp),0);
+				// printf(">>>here\n");
+			}
+			else{
+				oppofd=atoi(qtr);
+				printf("[INFO]Do you agree to start a new game with [%s] (yes/no)?\n  ",opponame);
+				yes_no = 1;
+				
+				// while (1)
+				// {
+				// 	pthread_mutex_unlock(&data_mutex);
+					
+				// 	// memset(buf, 0, sizeof(buf));
+				// 	// fgets(buf, sizeof(buf), stdin);
+				// 	printf("%s\n",sendbuf);
+				// 	if(strcmp(sendbuf,"yes") == 0)
+				// 	{
+				// 		printf("[INFO]connect sucessful\n");
+				// 		sprintf(sendbuf,"AGREE %d",oppofd);
+				// 		send(sockfd,sendbuf,strlen(sendbuf),0);
+				// 		printf("[INFO]Game Start!\n");
+				// 		int i;
+				// 		for(i=0;i<9;i++)x[i]=' ';
+				// 		le1='O';le2='X';
+				// 		G=1;
+				// 		if(le1=='O')IsMe=1;
+				// 		else IsMe=0;
+				// 		map();
+				// 		if(IsMe)printf("Please enter #(1-9) or enter -1 to leave the game\n");
+				// 		else printf("Wait for your opponent....\n");
+				// 		yes_no = 0;
+				// 		break;
+						
+				// 	}
+				// 	else if(strcmp(sendbuf,"no") == 0){
+				// 		printf("[INFO]Reject !!\n");
+				// 		sprintf(sendbuf,"Reject %d",oppofd);
+				// 		send(sockfd,sendbuf,strlen(sendbuf),0);
+				// 		yes_no = 0;
+				// 		break;
+				// 	}
+				// 	// else{
+				// 	// 	printf("Please enter yes/no !!\n");
+				// 	// }
+				// 	usleep(10000);
+				// 	pthread_mutex_lock(&data_mutex);
+				// }
+				
+			}
 		}
-		else if(strncmp(buf,"AGREE ",6) == 0)
+		else if(strncmp(recvbuf,"AGREE ",6) == 0)
 		{
-			ptr=strstr(buf," ");
+			ptr=strstr(recvbuf," ");
 			ptr++;
 			qtr=strstr(ptr," ");
 			*qtr='\0';
@@ -143,60 +208,71 @@ void *recvsock(void *arg){
 			for(i=0;i<9;i++)x[i]=' ';
 			le1='X';le2='O';
 			G=1;
+			send(sockfd,"Gammingstart",strlen("Gammingstart"),0);
 			if(le1=='O')IsMe=1;
 			else IsMe=0;
-			if(IsMe)printf("Press Enter to continue...\n");
+			map();
+			if(IsMe)printf("Please enter #(1-9) or enter -1 to leave the game\n");
 			else printf("Wait for your opponent....\n");
 		}
-        else if(strncmp(buf,"Reject ",7) == 0){
-            ptr=strstr(buf," ");
+        else if(strncmp(recvbuf,"Reject ",7) == 0){
+            ptr=strstr(recvbuf," ");
 			ptr++;
 			qtr=strstr(ptr," ");
 			*qtr='\0';
 			strcpy(opponame,ptr);
 			qtr++;
-			oppofd=atoi(qtr);
+			oppofd = 0;
 			printf("[INFO]%s reject you.\n",opponame);
             printf("[INFO]Please re-enter!\n");
         }
-        else if(strncmp(buf,"Leave ",6) == 0){
-            ptr=strstr(buf," ");
-			ptr++;
-			qtr=strstr(ptr," ");
-			*qtr='\0';
-			strcpy(opponame,ptr);
-			qtr++;
-			oppofd=atoi(qtr);
-			printf("[INFO]%s leave the gmae.\n",opponame);
-            printf("[INFO]Please re-enter the command.\n");
-            G = 0;
+        else if(strncmp(recvbuf,"Leave ",6) == 0){
+				
+				ptr=strstr(recvbuf," ");
+				ptr++;
+				qtr=strstr(ptr," ");
+				*qtr='\0';
+				strcpy(opponame,ptr);
+				qtr++;
+				oppofd = 0;
+				printf("[INFO]%s leave the gmae.\n",opponame);
+				printf("[INFO]Please re-enter the command.\n");
+				G = 0;
+				send(sockfd,"Gammingend",strlen("Gammingend"),0);
+				IsMe = 0;
+				// f = 0;
+			
         }
-        else if(strncmp(buf,"Close ",6) == 0){
+        else if(strncmp(recvbuf,"Close ",6) == 0){
             printf("[INFO]Server is close.\n");
             printf("[INFO]Please try to connect later.\n");
             printf("\n\t<<<Close the program>>>\n\n");
             break;
         }
-		else if(buf[0]=='#')
+		else if(recvbuf[0]=='#')
 		{
-			x[atoi(&buf[1])]=le2;
+			x[atoi(&recvbuf[1])]=le2;
 			if(iswin(le2))
 			{
 				printf("[INFO]You lose!\n\n");
 				G=0;
+				send(sockfd,"Gammingend",strlen("Gammingend"),0);
 			}
 			else if(istie())
 			{
 				printf("[INFO]It's a tie!\n\n");
+				G = 0;
+				send(sockfd,"Gammingend",strlen("Gammingend"),0);
+				map();
 			}
 			else{
 				IsMe=1;
 				map();
-				printf("Please enter #(1-9)\n");
+				printf("Please enter #(1-9) or enter -1 to leave the game\n");
 			}
 		}
 		else{
-			printf("%s\n",buf);
+			printf("%s\n",recvbuf);
 		}
 
         pthread_mutex_unlock(&data_mutex);
@@ -206,44 +282,55 @@ void *recvsock(void *arg){
 
 void *sendsock(void *arg){
     pthread_detach(pthread_self());
-    int f=1;
 	while(1){
-		char buf[128], buf2[128];
-        memset(buf, 0, sizeof(buf));
+		// pthread_mutex_lock(&data_mutex);
+		char buf2[128];
+        memset(sendbuf, 0, sizeof(sendbuf));
         memset(buf2, 0, sizeof(buf2));
-		fgets(buf, sizeof(buf), stdin);
-		if(G==1&&IsMe==1&&f==1)
-		{
-			map();
-			printf("Please enter #(1-9) or enter -1 to leave the game\n");
-			f=0;
-		}
-		if(G==1)f=0;
-		char *ptr = strstr(buf, "\n");
+		fgets(sendbuf, sizeof(sendbuf), stdin);
+		// pthread_mutex_lock(&data_mutex);
+		// if(G==1&&IsMe==1)
+		// {
+		// 	// map();
+		// 	printf("Please enter #(1-9) or enter -1 to leave the game\n");
+		// 	// f=0;
+		// }
+		// // if(G==1)f=0;
+		char *ptr = strstr(sendbuf, "\n");
 		*ptr = '\0';
 		char msg[131] = {};
-		if (strcmp(buf,"quit") == 0){
+		if (strcmp(sendbuf,"quit") == 0){
+			if(G == 1){
+				printf("遊戲中此指令不能使用!!請輸入 -1 !!\n");
+				continue;
+			}
 			memset(buf2,0,sizeof(buf2));
+			printf("\n\t<<<Close the program>>>\n\n");
 			sprintf(buf2,"[INFO] %s 退出了聊天室",name);
 			send(sockfd,buf2,strlen(buf2),0);
 			break;
 		}
-		if (strcmp(buf,"user") == 0){
+		if (strcmp(sendbuf,"user") == 0){
 			memset(buf2,0,sizeof(buf2));
 			sprintf(buf2,"ls");
 			send(sockfd,buf2,strlen(buf2),0);
 		}
-		else if(buf[0]=='@')
+		else if(sendbuf[0]=='@')
 		{
-			sprintf(msg,"%s",buf);
-			send(sockfd,msg,strlen(msg),0);
+			if(G == 1){
+				printf("你在遊戲中無法邀請其他人!\n");
+			}
+			else{
+				sprintf(msg,"%s",sendbuf);
+				send(sockfd,msg,strlen(msg),0);
+			}
 		}
-		else if(buf[0]=='#')
+		else if(sendbuf[0]=='#')
 		{
 			if(G==0)printf("Game is end or not start.\n");
 			else if(IsMe==0)printf("Is not your part.Please wait your opponent.\n");
 			else{
-				int n=atoi(&buf[1])-1;
+				int n=atoi(&sendbuf[1])-1;
 				if(x[n]!=' '||n>9||n<0)
 				{
 					printf("Please enter another number.#(1-9)\n");
@@ -257,11 +344,13 @@ void *sendsock(void *arg){
 					{
 						printf("[INFO]You win!\n\n");
 						G=0;
+						send(sockfd,"Gammingend",strlen("Gammingend"),0);
 					}
 					else if(istie())
 					{
 						printf("[INFO]It's a tie\n\n");
 						G=0;
+						send(sockfd,"Gammingend",strlen("Gammingend"),0);
 					}
 					else printf("\nWait for your opponent....\n");
 					IsMe=0;
@@ -270,58 +359,75 @@ void *sendsock(void *arg){
 				}
 			}
 		}
-		else if(buf[0]=='#')
-		{
-			x[atoi(&buf[1])]=le2;
-			if(iswin(le2))
-			{
-				printf("You lose!\n\n\n\n");
-				G=0;
-			}
-			else if(istie())
-			{
-				printf("It's a tie!\n\n\n\n");
-				G=0;
-			}
-			IsMe=1;;
-		}
-        else if(strcmp(buf,"yes") == 0)
+		// else if(buf[0]=='#')
+		// {
+		// 	x[atoi(&buf[1])]=le2;
+		// 	if(iswin(le2))
+		// 	{
+		// 		printf("You lose!\n\n\n\n");
+		// 		G=0;
+		// 	}
+		// 	else if(istie())
+		// 	{
+		// 		printf("It's a tie!\n\n\n\n");
+		// 		G=0;
+		// 	}
+		// 	IsMe=1;;
+		// }
+        else if(strcmp(sendbuf,"yes") == 0 && yes_no == 1)
 		{
 			printf("[INFO]connect sucessful\n");
-			sprintf(buf,"AGREE %d",oppofd);
-			send(sockfd,buf,strlen(buf),0);
+			sprintf(sendbuf,"AGREE %d",oppofd);
+			send(sockfd,sendbuf,strlen(sendbuf),0);
 			printf("[INFO]Game Start!\n");
 			int i;
 			for(i=0;i<9;i++)x[i]=' ';
 			le1='O';le2='X';
 			G=1;
+			send(sockfd,"Gammingstart",strlen("Gammingstart"),0);
 			if(le1=='O')IsMe=1;
 			else IsMe=0;
-			if(IsMe)printf("Press Enter to continue...\n");
+			map();
+			if(IsMe)printf("Please enter #(1-9) or enter -1 to leave the game\n");
 			else printf("Wait for your opponent....\n");
+			yes_no = 0;
+			
 		}
-        else if(strcmp(buf,"no") == 0){
+        else if(strcmp(sendbuf,"no") == 0 && yes_no == 1){
             printf("[INFO]Reject !!\n");
-            sprintf(buf,"Reject %d",oppofd);
-			send(sockfd,buf,strlen(buf),0);
+            sprintf(sendbuf,"Reject %d",oppofd);
+			send(sockfd,sendbuf,strlen(sendbuf),0);
+			yes_no = 0;
         }
-        else if(strcmp(buf,"-1") == 0){
+        // else if(strcmp(sendbuf,"yes") == 0 || strcmp(sendbuf,"no") == 0);
+		else if(strcmp(sendbuf,"-1") == 0 && G == 1){
             printf("[INFO]Leave the game !!\n");
-            sprintf(buf,"Leave %d",oppofd);
-			send(sockfd,buf,strlen(buf),0);
+            sprintf(sendbuf,"Leave %d",oppofd);
+			send(sockfd,sendbuf,strlen(sendbuf),0);
+			G = 0;
+			send(sockfd,"Gammingend",strlen("Gammingend"),0);
+			IsMe = 0;
+			// f = 0;
         }
 		// else if(strcmp(buf,"print")==0)
 		// {
 		// 	print();
 		// }
-        else if(strcmp(buf,"menu")==0)
+        else if(strcmp(sendbuf,"menu")==0)
 		{
 			printmenu();
 		}
-		else if(buf[0]!='\0'){
-			sprintf(msg,"[%s] : %s",name,buf);
+		else if(sendbuf[0]!='\0'){
+			if(yes_no == 1){
+				printf("Please enter yes/no !!\n");
+				pthread_mutex_unlock(&data_mutex);
+				continue;
+			}
+			sprintf(msg,"[%s] : %s",name,sendbuf);
 			send(sockfd,msg,strlen(msg),0);
 		}
+		// pthread_mutex_unlock(&data_mutex);
+		// usleep(50);
 	}
 	close(sockfd);
 }

@@ -18,6 +18,7 @@
 
 int serverSocket;
 int online[100];
+int gamming[100];
 int size = 100;
 char* account[105];
 pthread_mutex_t online_mutex = PTHREAD_MUTEX_INITIALIZER; // pthread 互斥鎖
@@ -100,7 +101,7 @@ void getAlluser(int fd){
 		}
 	}
 	send(fd,bar,strlen(bar),0);
-	char buf[100] = {};
+	char buf[256] = {};
 	strcpy(buf,"請選擇你的對手: (enter @fd) 或輸入其他指令");
 	send(fd,buf,strlen(buf),0);
 }
@@ -141,6 +142,7 @@ int main(){
 
     // 初始化
 	memset(online, 0, sizeof(online));
+	memset(gamming, 0, sizeof(gamming));
 	pthread_attr_init(&attr);                                       // thread detached 對執行緒屬性變數的初始化
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);	// 設定執行緒 detachstate 屬性  新執行緒不能用pthread_join()來同步
 
@@ -172,7 +174,7 @@ int main(){
 void *gamemenu(void *arg){
 
     int clientSocket = *(int *)arg;
-    char buffer[128];
+    char buffer[512];
     char *ptr;
     char tmp[100];
 
@@ -197,7 +199,7 @@ void *gamemenu(void *arg){
 			*ptr='\0';
 			printf("New account : %s\n",  account[clientSocket]);
             memset(tmp, 0, sizeof(tmp));
-            strcpy(tmp, "Successfully");
+            sprintf(tmp, "Successfully %d",clientSocket);
             send(clientSocket,tmp,strlen(tmp),0);
             memset(tmp, 0, sizeof(tmp));
             strcpy(tmp, account[clientSocket]);
@@ -218,12 +220,16 @@ void *gamemenu(void *arg){
 			// 對方關閉了
 			int i;
             for (i = 0;i < size; i++){
-				if (clientSocket == online[i]){
+				if (clientSocket == i){
 					online[i] = 0; //設為這個client不存在了
 					break;
 				}
 			}
 			printf("退出：fd = %d quit\n",clientSocket);
+			// char tmp[128] = ;
+			// strcpy(tmp, "Leave ");
+			// strcat(tmp,)
+			// SendMsgToAll(fprintf("Leave %d ",clientSocket));
 			pthread_exit((void*)i);
 		}
 
@@ -238,8 +244,16 @@ void *gamemenu(void *arg){
 			strcat(msg,account[clientSocket]);
 			sprintf(tmp," %d",clientSocket);
 			strcat(msg,tmp);
-			send(oppofd,msg,strlen(msg),0);
-			send(clientSocket,"等待對方的回應...\n\0",strlen("等待對方的回應...\n\0"),0);
+			if(oppofd == clientSocket){
+				send(clientSocket,"不能挑戰自己!!!\n<<<請重新輸入指令>>>\n\0",strlen("不能挑戰自己!!!\n<<<請重新輸入指令>>>\n\0"),0);
+				continue;
+			}
+			else if(gamming[oppofd] == 1)
+				send(clientSocket,"遊戲中...無法接受邀請!!\n\0",strlen("遊戲中...無法接受邀請!!\n\0"),0); 
+			else{
+				send(oppofd,msg,strlen(msg),0);
+				send(clientSocket,"等待對方的回應...\n\0",strlen("等待對方的回應...\n\0"),0);
+			}
 		}
 		else if(strncmp(buffer,"AGREE ",6)==0)
 		{
@@ -252,7 +266,7 @@ void *gamemenu(void *arg){
 			send(oppofd,msg,strlen(msg),0);
 		}
         else if (strncmp(buffer,"Reject ",7)==0){
-            int oppofd=atoi(&buffer[6]);
+            int oppofd=atoi(&buffer[7]);
 			char *msg = (char*)malloc( 256*sizeof(char) );
 			strcpy(msg,"Reject ");
 			strcat(msg,account[clientSocket]);
@@ -269,6 +283,12 @@ void *gamemenu(void *arg){
 			strcat(msg,tmp);
 			send(oppofd,msg,strlen(msg),0);
         }
+		else if (strncmp(buffer,"Gammingstart",12)==0){
+            gamming[clientSocket] = 1;
+        }
+		else if (strncmp(buffer,"Gammingend",10)==0){
+            gamming[clientSocket] = 0;
+        }
         else if(buffer[0]=='#')
 		{
 			int n=atoi(&buffer[1]),oppofd;
@@ -276,10 +296,16 @@ void *gamemenu(void *arg){
 			ptr=strstr(buffer," ");
 			ptr++;
 			oppofd=atoi(ptr);
-			sprintf(tmp,"#%d",n);
-			printf("[%d] buf=%s\n",clientSocket,tmp);
-			send(oppofd,tmp,strlen(tmp),0);
+			
+				sprintf(tmp,"#%d",n);
+				printf("[%d] buf=%s\n",clientSocket,tmp);
+				send(oppofd,tmp,strlen(tmp),0);
+			
 		}
+		// else if(strncmp(buffer,"Gamming ",8)==0){
+		// 	int fd=atoi(&buffer[9]);
+		// 	send(fd,"遊戲中...無法接受邀請!!\n\0",strlen("遊戲中...無法接受邀請!!\n\0"),0);
+		// }
 		else{
 			SendMsgToAll(buffer);
 		}
